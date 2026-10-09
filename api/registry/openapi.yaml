@@ -1,0 +1,145 @@
+openapi: 3.0.3
+info:
+  title: k0rdent State Management Registry API
+  description: >-
+    Served by kcm-controller-manager.
+  version: "1.0.0"
+
+paths:
+  /v1/providers/register:
+    post:
+      operationId: registerKSMProvider
+      summary: >-
+        Register a k0rdent State Management Provider, or refresh its
+        heartbeat — calling this again with the same name refreshes it;
+        there is no separate heartbeat endpoint.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterProviderRequest"
+      responses:
+        "204":
+          description: Registered (or heartbeat refreshed).
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "503":
+          $ref: "#/components/responses/NotLeader"
+        default:
+          $ref: "#/components/responses/InternalError"
+
+components:
+  responses:
+    InternalError:
+      description: >-
+        Unexpected server-side failure. The call may be retried.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    BadRequest:
+      description: Malformed request.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Missing or invalid caller token.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Forbidden:
+      description: Caller is not allowed to register this provider name.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotLeader:
+      description: Receiving replica is not the leader; retry.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+  schemas:
+    Problem:
+      type: object
+      required:
+        - type
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+          description: Stable, machine-readable problem identifier.
+        title:
+          type: string
+          description: Short human-readable summary.
+          minLength: 2
+          example: Invalid request
+        status:
+          type: integer
+          description: HTTP status code, repeated for logging convenience.
+          example: 400
+        detail:
+          type: string
+          description: Human-readable explanation of this occurrence.
+          example: "ttlSeconds: must be gte 1"
+        errors:
+          type: array
+          description: Field-level validation failures; applicable for 400
+          items:
+            type: object
+            required:
+              - field
+              - message
+            properties:
+              field:
+                type: string
+                example: ttlSeconds
+              message:
+                type: string
+                example: must be gte 1
+    RegisterProviderRequest:
+      type: object
+      required: [name, endpoint, state, apiVersions, ttlSeconds]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 63
+          pattern: ^[a-z]([-a-z0-9]*[a-z0-9])?$
+          description: >-
+            The provider name. This name will be used to verify against the
+            one defined in the ServiceSet object.
+        endpoint:
+          type: string
+          format: uri
+          description: >-
+            Base address the ServiceSet reconciler calls back on.
+        state:
+          type: string
+          enum:
+            - Active
+            - Suspended
+        caBundle:
+          type: string
+          format: byte
+        ttlSeconds:
+          type: integer
+          minimum: 1
+        timeoutSeconds:
+          type: integer
+          minimum: 1
+          default: 30
+        apiVersions:
+          type: array
+          items:
+            type: string
+          minItems: 1

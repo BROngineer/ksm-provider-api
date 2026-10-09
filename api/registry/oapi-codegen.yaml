@@ -1,0 +1,7 @@
+package: core
+generate:
+  models: true
+  std-http-server: true
+  client: true
+  embedded-spec: true
+output: registry.gen.go

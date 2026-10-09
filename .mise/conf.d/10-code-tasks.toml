@@ -33,3 +33,11 @@ run = 'golangci-lint run --timeout={{ env.GOLANGCI_LINT_TIMEOUT }}'
 [tasks.test]
 description = "Run tests"
 run = 'go test -race ./...'
+
+[tasks.api-gen]
+description = "Regenerate Go bindings from the OpenAPI specs under api/"
+run = '''
+for dir in api/registry; do
+    (cd "$dir" && oapi-codegen -config oapi-codegen.yaml openapi.yaml)
+done
+'''
