@@ -1,4 +1,4 @@
-package: core
+package: provider
 generate:
   models: true
   std-http-server: true
