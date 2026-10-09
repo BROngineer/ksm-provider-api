@@ -1,0 +1,7 @@
+# Tools and tasks with related env vars are defined
+# separately in the following configuration files:
+# .mise/conf.d/00-tools.toml
+# .mise/conf.d/10-code-tasks.toml
+# .mise/conf.d/20-dev-tasks.toml
+[settings]
+lockfile = false

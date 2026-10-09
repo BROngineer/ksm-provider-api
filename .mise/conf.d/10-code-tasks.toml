@@ -1,0 +1,35 @@
+[env]
+GOLANGCI_LINT_TIMEOUT = "2m"
+
+[tasks.tidy]
+description = "Run go mod tidy"
+run = 'go mod tidy'
+
+[tasks.build]
+description = "Build convoy"
+run = 'go build ./...'
+
+[tasks.fmt]
+description = "Run go fmt against code"
+run = 'go fmt ./...'
+
+[tasks.vet]
+description = "Run go vet against code"
+run = 'go vet ./...'
+
+[tasks.fix]
+description = "Run go fix against code"
+run = 'go fix ./...'
+
+[tasks.format]
+description = "Built-in format tools"
+depends = ["fmt", "vet", "fix"]
+
+[tasks.lint]
+description = "Run linter and quality checks"
+depends = ["format"]
+run = 'golangci-lint run --timeout={{ env.GOLANGCI_LINT_TIMEOUT }}'
+
+[tasks.test]
+description = "Run tests"
+run = 'go test -race ./...'

@@ -1,0 +1,7 @@
+[tools]
+go = "1.27.2"
+golangci-lint = "2.14.0"
+oapi-codegen = "2.8.0"
+
+[tool_alias]
+oapi-codegen = "go:github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen"
