@@ -1,0 +1,9 @@
+package: core
+generate:
+  models: true
+  std-http-server: true
+  client: true
+  embedded-spec: true
+output: provider.gen.go
+compatibility:
+  always-prefix-enum-values: true

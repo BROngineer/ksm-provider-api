@@ -37,7 +37,7 @@ run = 'go test -race ./...'
 [tasks.api-gen]
 description = "Regenerate Go bindings from the OpenAPI specs under api/"
 run = '''
-for dir in api/registry; do
+for dir in api/registry api/provider; do
     (cd "$dir" && oapi-codegen -config oapi-codegen.yaml openapi.yaml)
 done
 '''

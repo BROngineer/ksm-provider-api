@@ -1,0 +1,262 @@
+openapi: 3.0.3
+info:
+  title: k0rdent State Management Provider API
+  description: >-
+    Served by KSM provider.
+  version: "1.0.0"
+
+paths:
+  /v1/services:deploy:
+    post:
+      operationId: deployServices
+      summary: >-
+        Deploy service defined in the given ServiceSet. Either
+        initiate the deployment or collect the state of the services
+        being provisioned.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeployServicesRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/DeployServicesOK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/StaleGeneration"
+        default:
+          $ref: "#/components/responses/InternalError"
+  /v1/services:delete:
+    post:
+      operationId: deleteServices
+      summary: >-
+        Remove services defined in the ServiceSet being deleted
+        from the target managed cluster.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteServicesRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/DeleteServicesOK"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        default:
+          $ref: "#/components/responses/InternalError"
+
+components:
+  responses:
+    DeployServicesOK:
+      description: >-
+        Regular response to successful deploy request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/DeployServicesResult"
+    DeleteServicesOK:
+      description: >-
+        Regular response to successful delete request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/DeleteServicesResult"
+    InternalError:
+      description: >-
+        Unexpected server-side failure. The call may be retried. Not used for
+        deployment failures, which are reported as 200 with applied=false.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    BadRequest:
+      description: Malformed request.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Missing or invalid caller token.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Forbidden:
+      description: Caller is not allowed to deploy services with this provider.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Requested ServiceSet not found.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    StaleGeneration:
+      description: >-
+        Generation of the ServiceSet object fetched by the provider
+        is behind the given object generation in the request.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+  schemas:
+    Problem:
+      type: object
+      required:
+        - type
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+          description: Stable, machine-readable problem identifier.
+        title:
+          type: string
+          description: Short human-readable summary.
+          minLength: 2
+          example: Invalid request
+        status:
+          type: integer
+          description: HTTP status code, repeated for logging convenience.
+          example: 400
+        detail:
+          type: string
+          description: Human-readable explanation of this occurrence.
+          example: "ttlSeconds: must be gte 1"
+        errors:
+          type: array
+          description: Field-level validation failures; applicable for 400
+          items:
+            type: object
+            required:
+              - field
+              - message
+            properties:
+              field:
+                type: string
+                example: ttlSeconds
+              message:
+                type: string
+                example: must be gte 1
+    DeployServicesRequest:
+      type: object
+      required:
+        - name
+        - namespace
+        - generation
+      properties:
+        name:
+          type: string
+          minLength: 1
+        namespace:
+          type: string
+          minLength: 1
+        generation:
+          type: integer
+          format: int64
+    DeployServicesResult:
+      type: object
+      required:
+        - observedGeneration
+        - applied
+        - collected
+        - services
+      properties:
+        observedGeneration:
+          type: integer
+          format: int64
+        applied:
+          type: boolean
+        reason:
+          type: string
+          enum:
+            - InvalidInput
+            - SourceUnavailable
+            - TargetUnreachable
+            - ProviderError
+        message:
+          type: string
+        collected:
+          type: boolean
+        collectMessage:
+          type: string
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceState"
+    ServiceState:
+      type: object
+      required:
+        - name
+        - namespace
+        - template
+        - type
+        - state
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+        template:
+          type: string
+        type:
+          type: string
+          enum:
+            - Helm
+            - Kustomize
+            - Resource
+        state:
+          type: string
+          enum:
+            - Deployed
+            - Provisioning
+            - Failed
+            - Pending
+            - Deleting
+            - Deleted
+        version:
+          type: string
+        failureMessage:
+          type: string
+        lastStateTransitionTime:
+          type: string
+          format: date-time
+        lastDeployedHash:
+          type: string
+        deployedHash:
+          type: string
+    DeleteServicesRequest:
+      type: object
+      required:
+        - name
+        - namespace
+      properties:
+        name:
+          type: string
+          minLength: 1
+        namespace:
+          type: string
+          minLength: 1
+    DeleteServicesResult:
+      type: object
+      required:
+        - done
+      properties:
+        done:
+          type: boolean
