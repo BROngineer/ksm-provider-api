@@ -3,12 +3,8 @@ package client
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"math"
 	"net/http"
@@ -24,6 +20,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/brongineer/ksm-provider-api/api/registry"
+	"github.com/brongineer/ksm-provider-api/internal/httpclient"
 	"github.com/brongineer/ksm-provider-api/problem"
 )
 
@@ -32,9 +29,6 @@ const MinInterval = time.Second
 
 // ttlFactor makes one late heartbeat harmless: an entry survives two missed beats.
 const ttlFactor = 3
-
-// maxErrorBodyBytes caps how much of a non-problem error body ends up in logs.
-const maxErrorBodyBytes = 1 << 10
 
 type Config struct {
 	// RegistryURL is the base URL of the kcm registry, e.g. https://kcm-registry.kcm-system.svc:8443.
@@ -81,8 +75,8 @@ func NewHeartbeater(cfg Config) (*Heartbeater, error) {
 	httpClient := cfg.HTTPClient
 	if httpClient == nil {
 		var err error
-		if httpClient, err = newHTTPClient(cfg.RegistryCABundle); err != nil {
-			return nil, err
+		if httpClient, err = httpclient.New(cfg.RegistryCABundle); err != nil {
+			return nil, fmt.Errorf("registry CA bundle: %w", err)
 		}
 	}
 	c, err := registry.NewClient(cfg.RegistryURL, registry.WithHTTPClient(httpClient))
@@ -134,20 +128,6 @@ func validate(cfg Config) error {
 		errs = append(errs, errors.New("provider timeout must not be negative"))
 	}
 	return errors.Join(errs...)
-}
-
-func newHTTPClient(caBundle []byte) (*http.Client, error) {
-	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	if len(caBundle) > 0 {
-		pool := x509.NewCertPool()
-		if !pool.AppendCertsFromPEM(caBundle) {
-			return nil, errors.New("registry CA bundle contains no PEM certificates")
-		}
-		tlsConfig.RootCAs = pool
-	}
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.TLSClientConfig = tlsConfig
-	return &http.Client{Transport: transport}, nil
 }
 
 func newRealTicker(d time.Duration) (<-chan time.Time, func()) {
@@ -249,14 +229,8 @@ func ceilSeconds(d time.Duration) int {
 }
 
 func responseError(resp *http.Response) error {
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodyBytes))
-	if strings.HasPrefix(resp.Header.Get("Content-Type"), problem.ContentType) {
-		var p problem.Problem
-		if err := json.Unmarshal(body, &p); err == nil {
-			return fmt.Errorf("registry answered %d (%s): %w", resp.StatusCode, p.Type, p)
-		}
-	}
-	return fmt.Errorf("registry answered %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	p := problem.FromResponse(resp)
+	return fmt.Errorf("registry answered %d (%s): %w", p.Status, p.Type, p)
 }
 
 // NeedLeaderElection keeps a single replica heartbeating, so replicas never overwrite each other.
