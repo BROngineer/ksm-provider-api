@@ -1,6 +1,10 @@
 package problem
 
-import "net/http"
+import (
+	"encoding/json"
+	"net/http"
+	"slices"
+)
 
 const ContentType = "application/problem+json"
 
@@ -31,16 +35,48 @@ type Problem struct {
 	Errors []FieldError `json:"errors,omitempty"`
 }
 
+type meta struct {
+	title  string
+	status int
+}
+
+var known = map[Type]meta{
+	InvalidRequest:  {"Invalid request", http.StatusBadRequest},
+	Unauthenticated: {"Unauthenticated", http.StatusUnauthorized},
+	Forbidden:       {"Forbidden", http.StatusForbidden},
+	NotFound:        {"Not found", http.StatusNotFound},
+	StaleGeneration: {"Stale generation", http.StatusConflict},
+	Internal:        {"Internal error", http.StatusInternalServerError},
+	NotLeader:       {"Not leader", http.StatusServiceUnavailable},
+}
+
+// New keeps an unknown type as-is but answers it as an internal error, so a typo never turns into a 200.
 func New(t Type, detail string) Problem {
-	return Problem{}
+	m, ok := known[t]
+	if !ok {
+		m = known[Internal]
+	}
+	return Problem{Type: t, Title: m.title, Status: m.status, Detail: detail}
 }
 
 func (p Problem) WithErrors(errs ...FieldError) Problem {
+	p.Errors = append(slices.Clone(p.Errors), errs...)
 	return p
 }
 
 func (p Problem) Error() string {
-	return ""
+	if p.Detail == "" {
+		return p.Title
+	}
+	return p.Title + ": " + p.Detail
 }
 
-func Write(w http.ResponseWriter, p Problem) {}
+func Write(w http.ResponseWriter, p Problem) {
+	if p.Status == 0 {
+		p.Status = http.StatusInternalServerError
+	}
+	w.Header().Set("Content-Type", ContentType)
+	w.WriteHeader(p.Status)
+	// The status line is already sent; an encoding failure can only mean a broken connection.
+	_ = json.NewEncoder(w).Encode(p)
+}
