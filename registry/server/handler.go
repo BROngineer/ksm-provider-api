@@ -3,18 +3,17 @@ package server
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 
 	"github.com/brongineer/ksm-provider-api/api/registry"
 	"github.com/brongineer/ksm-provider-api/auth"
+	"github.com/brongineer/ksm-provider-api/internal/schema"
 	"github.com/brongineer/ksm-provider-api/problem"
 )
 
@@ -48,13 +47,9 @@ func NewHandler(cfg HandlerConfig) (http.Handler, error) {
 		return nil, errors.New("authenticator is required")
 	}
 
-	spec, err := registry.GetSpec()
+	requestSchema, err := schema.Load(registry.GetSpec, "RegisterProviderRequest")
 	if err != nil {
-		return nil, fmt.Errorf("load embedded registry spec: %w", err)
-	}
-	schemaRef, ok := spec.Components.Schemas["RegisterProviderRequest"]
-	if !ok || schemaRef.Value == nil {
-		return nil, errors.New("embedded registry spec has no RegisterProviderRequest schema")
+		return nil, err
 	}
 
 	logger := cfg.Logger
@@ -68,7 +63,7 @@ func NewHandler(cfg HandlerConfig) (http.Handler, error) {
 
 	h := &registerHandler{
 		registry: cfg.Registry,
-		schema:   schemaRef.Value,
+		schema:   requestSchema,
 		logger:   logger,
 		allowed:  cfg.Allowed,
 	}
@@ -97,8 +92,8 @@ func (h *registerHandler) RegisterKSMProvider(w http.ResponseWriter, r *http.Req
 		problem.Write(w, problem.New(problem.InvalidRequest, "request body is not valid JSON"))
 		return
 	}
-	if err := h.schema.VisitJSON(doc, openapi3.MultiErrors()); err != nil {
-		problem.Write(w, problem.New(problem.InvalidRequest, "request does not match the schema").WithErrors(fieldErrors(err)...))
+	if fieldErrs := schema.Validate(h.schema, doc); fieldErrs != nil {
+		problem.Write(w, problem.New(problem.InvalidRequest, "request does not match the schema").WithErrors(fieldErrs...))
 		return
 	}
 
@@ -148,29 +143,6 @@ func validateEndpoint(endpoint string) (problem.FieldError, bool) {
 		return problem.FieldError{Field: "endpoint", Message: "must be an absolute http or https URL"}, false
 	}
 	return problem.FieldError{}, true
-}
-
-func fieldErrors(err error) []problem.FieldError {
-	var out []problem.FieldError
-	var visit func(error)
-	visit = func(err error) {
-		if multi, ok := errors.AsType[openapi3.MultiError](err); ok {
-			for _, e := range multi {
-				visit(e)
-			}
-			return
-		}
-		if schemaErr, ok := errors.AsType[*openapi3.SchemaError](err); ok {
-			out = append(out, problem.FieldError{
-				Field:   strings.Join(schemaErr.JSONPointer(), "."),
-				Message: schemaErr.Reason,
-			})
-			return
-		}
-		out = append(out, problem.FieldError{Message: "invalid value"})
-	}
-	visit(err)
-	return out
 }
 
 func leaderGate(isLeader func() bool) registry.MiddlewareFunc {
