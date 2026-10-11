@@ -227,11 +227,12 @@ func TestInvalidDeleteResultIsRejected(t *testing.T) {
 
 func TestTimeout(t *testing.T) {
 	release := make(chan struct{})
-	t.Cleanup(func() { close(release) })
 	f := newFakeProvider(t, func(w http.ResponseWriter) {
 		<-release
 		w.WriteHeader(http.StatusOK)
 	})
+	// Registered after the server so it runs before server.Close, which waits for handlers.
+	t.Cleanup(func() { close(release) })
 	tokenFile := filepath.Join(t.TempDir(), "token")
 	writeToken(t, tokenFile, "kcm-token")
 	c, err := New(Config{Endpoint: f.server.URL, TokenFile: tokenFile, Timeout: 50 * time.Millisecond})
@@ -255,11 +256,11 @@ func TestTimeout(t *testing.T) {
 
 func TestCallerCancellation(t *testing.T) {
 	release := make(chan struct{})
-	t.Cleanup(func() { close(release) })
 	f := newFakeProvider(t, func(w http.ResponseWriter) {
 		<-release
 		w.WriteHeader(http.StatusOK)
 	})
+	t.Cleanup(func() { close(release) })
 	c, _ := newTestClient(t, f.server.URL)
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
