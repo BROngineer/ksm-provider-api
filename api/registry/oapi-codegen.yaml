@@ -5,3 +5,5 @@ generate:
   client: true
   embedded-spec: true
 output: registry.gen.go
+compatibility:
+  always-prefix-enum-values: true

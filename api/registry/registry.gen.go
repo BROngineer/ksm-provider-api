@@ -23,16 +23,16 @@ import (
 
 // Defines values for RegisterProviderRequestState.
 const (
-	Active    RegisterProviderRequestState = "Active"
-	Suspended RegisterProviderRequestState = "Suspended"
+	RegisterProviderRequestStateActive    RegisterProviderRequestState = "Active"
+	RegisterProviderRequestStateSuspended RegisterProviderRequestState = "Suspended"
 )
 
 // Valid indicates whether the value is a known member of the RegisterProviderRequestState enum.
 func (e RegisterProviderRequestState) Valid() bool {
 	switch e {
-	case Active:
+	case RegisterProviderRequestStateActive:
 		return true
-	case Suspended:
+	case RegisterProviderRequestStateSuspended:
 		return true
 	default:
 		return false
