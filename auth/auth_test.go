@@ -268,6 +268,16 @@ func TestRequireUser(t *testing.T) {
 	}
 }
 
+// The values are part of the deployment contract: Helm charts on both sides hard-code them.
+func TestAudiencesAreStable(t *testing.T) {
+	if RegistryAudience != "ksm-registry" {
+		t.Errorf("RegistryAudience = %q, want %q", RegistryAudience, "ksm-registry")
+	}
+	if ProviderAudience != "ksm-provider" {
+		t.Errorf("ProviderAudience = %q, want %q", ProviderAudience, "ksm-provider")
+	}
+}
+
 func TestServiceAccountUsername(t *testing.T) {
 	if got, want := ServiceAccountUsername("kcm-system", "kcm"), "system:serviceaccount:kcm-system:kcm"; got != want {
 		t.Errorf("ServiceAccountUsername = %q, want %q", got, want)

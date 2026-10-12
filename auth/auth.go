@@ -15,6 +15,15 @@ import (
 	"github.com/brongineer/ksm-provider-api/problem"
 )
 
+// Audiences of the projected ServiceAccount tokens. Distinct audiences keep a token stolen from
+// one direction from being replayed in the other; both sides' Helm charts must use these values.
+const (
+	// RegistryAudience is requested by adapters for heartbeats and checked by the kcm registry.
+	RegistryAudience = "ksm-registry"
+	// ProviderAudience is requested by kcm for provider calls and checked by adapters.
+	ProviderAudience = "ksm-provider"
+)
+
 // ErrUnauthenticated marks a token the cluster rejected, as opposed to a failure to ask the cluster.
 var ErrUnauthenticated = errors.New("unauthenticated")
 
