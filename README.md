@@ -22,6 +22,9 @@ The OpenAPI specs in [`api/provider`](api/provider/openapi.yaml) and
 [`api/registry`](api/registry/openapi.yaml) are the source of truth for the wire
 format.
 
+Reference adapter: [`ksm-provider-sveltos`](https://github.com/brongineer/ksm-provider-sveltos)
+(ProjectSveltos).
+
 ## Packages
 
 | Package | Purpose | Used by |
