@@ -133,6 +133,15 @@ case entry.State == registryserver.StateSuspended:
 }
 ```
 
+### 3.1.1 Checking the target cluster
+
+Whether the target cluster exists is kcm's concern, not the provider's: check
+it before calling. An adapter whose provider objects match no cluster returns
+the services it last reported, unchanged (the Sveltos adapter does exactly what
+kcm's in-tree code did), so their states may be stale. kcm knows the
+ClusterDeployment and resolves the target cluster itself; when it is missing,
+kcm sets `status.deployed=false` and does not trust the reported states.
+
 ### 3.2 Building clients
 
 Build one `provider/client.Client` per provider and reuse it; rebuild it when
@@ -174,6 +183,15 @@ if res.ObservedGeneration < serviceSet.Generation {
 // res.Services                           -> status.services (kcm keeps per-service conditions)
 // res.Services[i].DeployedHash           -> input to the health verifier
 ```
+
+After writing the status, return an error when `Applied` or `Collected` is
+false. kcm's in-tree reconciler returned the errors of `ensureProfile` and
+`collectServiceStatuses`, so the rate limiter retried; the contract reports
+those failures as results, and kcm must keep the retry itself.
+
+When `Collected` is false the adapter has not fingerprinted anything: every
+`DeployedHash` is empty and the verifier must not stamp, exactly as kcm skipped
+verification after a failed collection.
 
 ### 3.4 Delete
 
