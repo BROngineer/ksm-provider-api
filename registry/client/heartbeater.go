@@ -238,7 +238,7 @@ func (h *Heartbeater) NeedLeaderElection() bool {
 	return true
 }
 
-// Registered is closed after the first accepted heartbeat. Nudges sent before it would hit
+// Registered is closed after the first accepted heartbeat. Notifications sent before it would hit
 // a registry that does not know the provider yet.
 func (h *Heartbeater) Registered() <-chan struct{} {
 	return h.registered

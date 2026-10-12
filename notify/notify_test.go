@@ -1,4 +1,4 @@
-package nudge
+package notify
 
 import (
 	"sync"
@@ -71,18 +71,18 @@ func waitDelivered(t *testing.T, sink *countingSink, want int) {
 	deadline := time.Now().Add(waitTimeout)
 	for sink.delivered() < want {
 		if time.Now().After(deadline) {
-			t.Fatalf("delivered %d nudges, want %d", sink.delivered(), want)
+			t.Fatalf("delivered %d notifications, want %d", sink.delivered(), want)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
 }
 
-func TestNudgeEmitsEventForServiceSet(t *testing.T) {
+func TestStateChangedEmitsEventForServiceSet(t *testing.T) {
 	sink := &countingSink{}
 	rec, stop := newRecorder(sink, runtime.NewScheme(), "ksm-provider-sveltos")
 	defer stop()
 
-	Nudge(rec, serviceSetRef("cd-1-abcd"))
+	StateChanged(rec, serviceSetRef("cd-1-abcd"))
 	waitDelivered(t, sink, 1)
 
 	ev := sink.first()
@@ -103,17 +103,17 @@ func TestNudgeEmitsEventForServiceSet(t *testing.T) {
 	}
 }
 
-func TestRepeatedNudgesAreNotDropped(t *testing.T) {
+func TestRepeatedNotificationsAreNotDropped(t *testing.T) {
 	sink := &countingSink{}
 	rec, stop := newRecorder(sink, runtime.NewScheme(), "ksm-provider-sveltos")
 	defer stop()
 
-	const nudges = 50
-	for range nudges {
-		Nudge(rec, serviceSetRef("cd-1-abcd"))
+	const notifications = 50
+	for range notifications {
+		StateChanged(rec, serviceSetRef("cd-1-abcd"))
 	}
 
-	waitDelivered(t, sink, nudges)
+	waitDelivered(t, sink, notifications)
 }
 
 func TestNewRecorderWritesThroughClientset(t *testing.T) {
@@ -121,7 +121,7 @@ func TestNewRecorderWritesThroughClientset(t *testing.T) {
 	rec, stop := NewRecorder(cs, runtime.NewScheme(), "ksm-provider-sveltos")
 	defer stop()
 
-	Nudge(rec, serviceSetRef("cd-1-abcd"))
+	StateChanged(rec, serviceSetRef("cd-1-abcd"))
 
 	deadline := time.Now().Add(waitTimeout)
 	for {
@@ -133,7 +133,7 @@ func TestNewRecorderWritesThroughClientset(t *testing.T) {
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("events = %+v, want one nudge", list.Items)
+			t.Fatalf("events = %+v, want one notification", list.Items)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -146,7 +146,7 @@ func TestFieldSelector(t *testing.T) {
 	}
 	match := fields.Set{"involvedObject.kind": ServiceSetKind, "reason": Reason}
 	if !sel.Matches(match) {
-		t.Errorf("selector %q does not match a nudge", sel)
+		t.Errorf("selector %q does not match a notification", sel)
 	}
 	for _, other := range []fields.Set{
 		{"involvedObject.kind": "Pod", "reason": Reason},
@@ -159,7 +159,7 @@ func TestFieldSelector(t *testing.T) {
 }
 
 func TestRequestFor(t *testing.T) {
-	nudge := func(mutate func(*corev1.Event)) *corev1.Event {
+	notification := func(mutate func(*corev1.Event)) *corev1.Event {
 		ev := &corev1.Event{Reason: Reason, InvolvedObject: *serviceSetRef("cd-1-abcd")}
 		if mutate != nil {
 			mutate(ev)
@@ -171,12 +171,12 @@ func TestRequestFor(t *testing.T) {
 		ev   *corev1.Event
 		want bool
 	}{
-		{"nudge", nudge(nil), true},
-		{"other reason", nudge(func(e *corev1.Event) { e.Reason = "Something" }), false},
-		{"other kind", nudge(func(e *corev1.Event) { e.InvolvedObject.Kind = "Pod" }), false},
-		{"ServiceSet of another group", nudge(func(e *corev1.Event) { e.InvolvedObject.APIVersion = "example.com/v1" }), false},
-		{"core group", nudge(func(e *corev1.Event) { e.InvolvedObject.APIVersion = "v1" }), false},
-		{"no name", nudge(func(e *corev1.Event) { e.InvolvedObject.Name = "" }), false},
+		{"notification", notification(nil), true},
+		{"other reason", notification(func(e *corev1.Event) { e.Reason = "Something" }), false},
+		{"other kind", notification(func(e *corev1.Event) { e.InvolvedObject.Kind = "Pod" }), false},
+		{"ServiceSet of another group", notification(func(e *corev1.Event) { e.InvolvedObject.APIVersion = "example.com/v1" }), false},
+		{"core group", notification(func(e *corev1.Event) { e.InvolvedObject.APIVersion = "v1" }), false},
+		{"no name", notification(func(e *corev1.Event) { e.InvolvedObject.Name = "" }), false},
 		{"nil event", nil, false},
 	}
 	for _, tt := range tests {
