@@ -27,6 +27,9 @@ See the [API contract](api.md) for the wire-level rules this guide relies on.
 | `notify` | watching state-change notifications |
 | `providertest` | `FakeProvider` and `TestServer` in kcm's tests |
 
+Snippets import `registry/server` as `registryserver` and `provider/client` as
+`providerclient`, and the generated `api/provider` package as `provider`.
+
 ## 2. Serving the registry
 
 ### 2.1 Wiring
