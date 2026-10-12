@@ -55,10 +55,7 @@ formatters:
         - dot
         - default # Default section: contains all imports that could not be matched to another section type.
         - prefix(github.com/BROngineer) # Custom section: groups all imports with the specified Prefix.
-<<<<<<< HEAD
         - prefix(github.com/brongineer)
-=======
->>>>>>> 3dcb4da (chore: golangci config and ci workflow)
     gofmt:
       rewrite-rules:
         - pattern: interface{}
@@ -69,10 +66,7 @@ formatters:
       # Default: []
       local-prefixes:
         - github.com/BROngineer
-<<<<<<< HEAD
         - github.com/brongineer
-=======
->>>>>>> 3dcb4da (chore: golangci config and ci workflow)
 issues:
   max-issues-per-linter: 10
   max-same-issues: 5
