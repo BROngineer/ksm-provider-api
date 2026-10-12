@@ -50,10 +50,10 @@ func newFakeProvider(t *testing.T, reply func(w http.ResponseWriter)) *fakeProvi
 	return f
 }
 
-func jsonReply(status int, body string) func(http.ResponseWriter) {
+func okJSON(body string) func(http.ResponseWriter) {
 	return func(w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(status)
+		w.WriteHeader(http.StatusOK)
 		_, _ = io.WriteString(w, body)
 	}
 }
@@ -83,7 +83,7 @@ const deployedJSON = `{"observedGeneration":7,"applied":true,"collected":true,"s
 var deployReq = provider.DeployServicesRequest{Name: "cd-1-abcd", Namespace: "team-a", Generation: 7}
 
 func TestDeployServices(t *testing.T) {
-	f := newFakeProvider(t, jsonReply(http.StatusOK, deployedJSON))
+	f := newFakeProvider(t, okJSON(deployedJSON))
 	c, _ := newTestClient(t, f.server.URL)
 
 	got, err := c.DeployServices(context.Background(), deployReq)
@@ -111,7 +111,7 @@ func TestDeployServices(t *testing.T) {
 }
 
 func TestDeleteServices(t *testing.T) {
-	f := newFakeProvider(t, jsonReply(http.StatusOK, `{"done":true}`))
+	f := newFakeProvider(t, okJSON(`{"done":true}`))
 	c, _ := newTestClient(t, f.server.URL)
 
 	got, err := c.DeleteServices(context.Background(), provider.DeleteServicesRequest{Name: "cd-1-abcd", Namespace: "team-a"})
@@ -129,7 +129,7 @@ func TestDeleteServices(t *testing.T) {
 }
 
 func TestTokenIsRereadOnEveryCall(t *testing.T) {
-	f := newFakeProvider(t, jsonReply(http.StatusOK, deployedJSON))
+	f := newFakeProvider(t, okJSON(deployedJSON))
 	c, tokenFile := newTestClient(t, f.server.URL)
 
 	if _, err := c.DeployServices(context.Background(), deployReq); err != nil {
@@ -202,7 +202,7 @@ func TestInvalidResultsAreRejected(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := newFakeProvider(t, jsonReply(http.StatusOK, tt.body))
+			f := newFakeProvider(t, okJSON(tt.body))
 			c, _ := newTestClient(t, f.server.URL)
 
 			_, err := c.DeployServices(context.Background(), deployReq)
@@ -215,7 +215,7 @@ func TestInvalidResultsAreRejected(t *testing.T) {
 }
 
 func TestInvalidDeleteResultIsRejected(t *testing.T) {
-	f := newFakeProvider(t, jsonReply(http.StatusOK, `{"done":"yes"}`))
+	f := newFakeProvider(t, okJSON(`{"done":"yes"}`))
 	c, _ := newTestClient(t, f.server.URL)
 
 	_, err := c.DeleteServices(context.Background(), provider.DeleteServicesRequest{Name: "a", Namespace: "b"})
@@ -276,7 +276,7 @@ func TestCallerCancellation(t *testing.T) {
 }
 
 func TestMissingTokenFileFailsTheCall(t *testing.T) {
-	f := newFakeProvider(t, jsonReply(http.StatusOK, deployedJSON))
+	f := newFakeProvider(t, okJSON(deployedJSON))
 	c, tokenFile := newTestClient(t, f.server.URL)
 	if err := os.Remove(tokenFile); err != nil {
 		t.Fatalf("remove token: %v", err)

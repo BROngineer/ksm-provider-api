@@ -56,13 +56,13 @@ func (s *countingSink) first() *corev1.Event {
 	return s.events[0]
 }
 
-func serviceSetRef(name string) *corev1.ObjectReference {
+func serviceSetRef() *corev1.ObjectReference {
 	return &corev1.ObjectReference{
 		Kind:       ServiceSetKind,
 		APIVersion: ServiceSetGroup + "/v1beta1",
 		Namespace:  "team-a",
-		Name:       name,
-		UID:        types.UID("uid-" + name),
+		Name:       "cd-1-abcd",
+		UID:        types.UID("uid-cd-1-abcd"),
 	}
 }
 
@@ -82,7 +82,7 @@ func TestStateChangedEmitsEventForServiceSet(t *testing.T) {
 	rec, stop := newRecorder(sink, runtime.NewScheme(), "ksm-provider-sveltos")
 	defer stop()
 
-	StateChanged(rec, serviceSetRef("cd-1-abcd"))
+	StateChanged(rec, serviceSetRef())
 	waitDelivered(t, sink, 1)
 
 	ev := sink.first()
@@ -110,7 +110,7 @@ func TestRepeatedNotificationsAreNotDropped(t *testing.T) {
 
 	const notifications = 50
 	for range notifications {
-		StateChanged(rec, serviceSetRef("cd-1-abcd"))
+		StateChanged(rec, serviceSetRef())
 	}
 
 	waitDelivered(t, sink, notifications)
@@ -121,7 +121,7 @@ func TestNewRecorderWritesThroughClientset(t *testing.T) {
 	rec, stop := NewRecorder(cs, runtime.NewScheme(), "ksm-provider-sveltos")
 	defer stop()
 
-	StateChanged(rec, serviceSetRef("cd-1-abcd"))
+	StateChanged(rec, serviceSetRef())
 
 	deadline := time.Now().Add(waitTimeout)
 	for {
@@ -160,7 +160,7 @@ func TestFieldSelector(t *testing.T) {
 
 func TestRequestFor(t *testing.T) {
 	notification := func(mutate func(*corev1.Event)) *corev1.Event {
-		ev := &corev1.Event{Reason: Reason, InvolvedObject: *serviceSetRef("cd-1-abcd")}
+		ev := &corev1.Event{Reason: Reason, InvolvedObject: *serviceSetRef()}
 		if mutate != nil {
 			mutate(ev)
 		}
