@@ -30,6 +30,9 @@ type Server struct {
 	KeyFile  string
 	// ShutdownTimeout bounds how long in-flight requests may finish. Zero means 10s.
 	ShutdownTimeout time.Duration
+	// Insecure serves plain HTTP and ignores CertFile and KeyFile. For testing and demos only:
+	// bearer tokens then travel in clear text and can be replayed by anyone on the network.
+	Insecure bool
 }
 
 func (s *Server) Start(ctx context.Context) error {
