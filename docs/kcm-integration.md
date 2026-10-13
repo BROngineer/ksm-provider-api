@@ -20,7 +20,7 @@ See the [API contract](api.md) for the wire-level rules this guide relies on.
 | Package | Used for |
 |---|---|
 | `registry/server` | the registry store and the register handler |
-| `httpserver` | serving the registry handler over TLS |
+| `httpserver` | serving the registry handler over TLS (plain HTTP in insecure mode) |
 | `auth` | authenticating adapters' heartbeats |
 | `provider/client` | calling adapters |
 | `problem` | branching on error types |
@@ -87,6 +87,11 @@ if err := mgr.Add(&httpserver.Server{
 | registry `Service` | exposes the port above; adapters use its DNS name as `RegistryURL` |
 | CA for adapters | the registry certificate's CA, handed to adapters (their `RegistryCABundle`) |
 | RBAC | `create` on `tokenreviews.authentication.k8s.io` |
+| insecure mode | a Helm value (e.g. `ksm.registry.insecure`) setting `httpserver.Server{Insecure: true}` and dropping the certificate; adapters then use an `http://` `RegistryURL` and no CA. Testing and demos only, see [API contract §5.1](api.md#51-insecure-mode-testing-and-demos-only) |
+
+Adapters in insecure mode announce an `http://` endpoint and no `caBundle`;
+`provider/client` calls such endpoints as they are, so kcm needs no switch for
+that direction.
 
 ### 2.3 Re-enqueueing ServiceSets on transitions
 
@@ -133,6 +138,15 @@ case entry.State == registryserver.StateSuspended:
 }
 ```
 
+### 3.1.1 Checking the target cluster
+
+Whether the target cluster exists is kcm's concern, not the provider's: check
+it before calling. An adapter whose provider objects match no cluster returns
+the services it last reported, unchanged (the Sveltos adapter does exactly what
+kcm's in-tree code did), so their states may be stale. kcm knows the
+ClusterDeployment and resolves the target cluster itself; when it is missing,
+kcm sets `status.deployed=false` and does not trust the reported states.
+
 ### 3.2 Building clients
 
 Build one `provider/client.Client` per provider and reuse it; rebuild it when
@@ -174,6 +188,15 @@ if res.ObservedGeneration < serviceSet.Generation {
 // res.Services                           -> status.services (kcm keeps per-service conditions)
 // res.Services[i].DeployedHash           -> input to the health verifier
 ```
+
+After writing the status, return an error when `Applied` or `Collected` is
+false. kcm's in-tree reconciler returned the errors of `ensureProfile` and
+`collectServiceStatuses`, so the rate limiter retried; the contract reports
+those failures as results, and kcm must keep the retry itself.
+
+When `Collected` is false the adapter has not fingerprinted anything: every
+`DeployedHash` is empty and the verifier must not stamp, exactly as kcm skipped
+verification after a failed collection.
 
 ### 3.4 Delete
 

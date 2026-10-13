@@ -1,7 +1,8 @@
 # Adapter developer guide
 
-> **Status: planned.** The first adapter (`ksm-provider-sveltos`) is being
-> built against this guide; it will be updated where practice diverges.
+> **Reference implementation:** [`ksm-provider-sveltos`](https://github.com/brongineer/ksm-provider-sveltos)
+> follows this guide; its `cmd/main.go`, `internal/sveltos/provider.go` and Helm chart are
+> working examples of every section below.
 
 An adapter connects k0rdent to a state management provider (Sveltos, Argo CD,
 Flux, …). kcm tells the adapter which ServiceSet to deploy or delete; the
@@ -166,6 +167,14 @@ Notes:
 - `Interval` must be at least 1s. The heartbeat sends `ttlSeconds = 3 × Interval`.
 - `SuspendCheck` makes a scale-to-zero suspend the provider; any other
   shutdown just lets the registration expire.
+- Gate whatever **produces** notifications, not only the code emitting them.
+  A poller that starts before `Registered()` treats every ServiceSet as changed
+  on its first tick; if its output is buffered until registration, the buffer
+  fills and drops events, and a fully deployed ServiceSet is never notified
+  again. `ksm-provider-sveltos` wraps its poller in a runnable that waits for
+  `Registered()` and drains the poller's channel without a gate.
+- Notify only for ServiceSets whose `spec.provider.name` is your provider name:
+  several adapters may run against the same kcm.
 
 ## 3. Deployment
 
@@ -199,6 +208,24 @@ Tokens sent by kcm are checked with a `TokenReview` for audience
 - The issuing CA goes into `EndpointCABundle`, so kcm can verify the adapter.
 - The registry's CA (from the kcm installation) goes into `RegistryCABundle`.
 
+**Insecure mode (testing and demos only).** Without certificates:
+
+```go
+mgr.Add(&httpserver.Server{Handler: h, Addr: ":9443", Insecure: true})
+
+registryclient.NewHeartbeater(registryclient.Config{
+	RegistryURL: "http://kcm-ksm-registry.kcm-system.svc:8443", // when kcm's registry is insecure too
+	Endpoint:    "http://ksm-provider-example.example-system.svc:9443",
+	// no RegistryCABundle, no EndpointCABundle
+	…
+})
+```
+
+Make it an explicit opt-in (a flag or chart value, off by default) and never
+infer it from missing certificate files: a missing mount must fail startup, not
+silently downgrade to clear text. The risks are in
+[API contract §5.1](api.md#51-insecure-mode-testing-and-demos-only).
+
 ### 3.3 Registration on the kcm side
 
 kcm only accepts heartbeats from ServiceAccounts on its allow-list. The kcm
@@ -220,7 +247,11 @@ e.g. `name: ksm-provider-example, serviceAccount: example-system/ksm-provider-ex
 | your provider's CRDs | as needed | provider objects, possibly in regional clusters |
 
 The k0rdent rows depend on what your adapter reads; the list above is what an
-adapter following kcm's own service semantics needs.
+adapter following kcm's own service semantics needs. A complete example,
+including the Sveltos rows, is `charts/ksm-provider-sveltos/templates/rbac.yaml`
+in `ksm-provider-sveltos`: a ClusterRole for cluster-wide reads, provider
+objects, events and TokenReviews, and a namespaced Role for leases and `get` on
+the adapter's own Deployment only (`resourceNames`).
 
 ## 4. Testing
 

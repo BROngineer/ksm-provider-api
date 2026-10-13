@@ -22,6 +22,9 @@ The OpenAPI specs in [`api/provider`](api/provider/openapi.yaml) and
 [`api/registry`](api/registry/openapi.yaml) are the source of truth for the wire
 format.
 
+Reference adapter: [`ksm-provider-sveltos`](https://github.com/brongineer/ksm-provider-sveltos)
+(ProjectSveltos).
+
 ## Packages
 
 | Package | Purpose | Used by |
@@ -33,7 +36,7 @@ format.
 | `registry/client` | `Heartbeater`: registration and heartbeats | adapters |
 | `notify` | state-change notifications (`StateChanged`) and the kcm-side watch helpers | adapters, kcm |
 | `auth` | TokenReview authentication, result cache, token audiences | adapters, kcm |
-| `httpserver` | TLS server with certificate reload, used for both APIs | adapters, kcm |
+| `httpserver` | TLS server with certificate reload, used for both APIs; plain-HTTP insecure mode for testing and demos | adapters, kcm |
 | `problem` | RFC 9457 problem details shared by both APIs | adapters, kcm |
 | `providertest` | fakes, test servers and the provider contract suite | tests |
 
