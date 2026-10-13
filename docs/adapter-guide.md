@@ -208,6 +208,24 @@ Tokens sent by kcm are checked with a `TokenReview` for audience
 - The issuing CA goes into `EndpointCABundle`, so kcm can verify the adapter.
 - The registry's CA (from the kcm installation) goes into `RegistryCABundle`.
 
+**Insecure mode (testing and demos only).** Without certificates:
+
+```go
+mgr.Add(&httpserver.Server{Handler: h, Addr: ":9443", Insecure: true})
+
+registryclient.NewHeartbeater(registryclient.Config{
+	RegistryURL: "http://kcm-ksm-registry.kcm-system.svc:8443", // when kcm's registry is insecure too
+	Endpoint:    "http://ksm-provider-example.example-system.svc:9443",
+	// no RegistryCABundle, no EndpointCABundle
+	…
+})
+```
+
+Make it an explicit opt-in (a flag or chart value, off by default) and never
+infer it from missing certificate files: a missing mount must fail startup, not
+silently downgrade to clear text. The risks are in
+[API contract §5.1](api.md#51-insecure-mode-testing-and-demos-only).
+
 ### 3.3 Registration on the kcm side
 
 kcm only accepts heartbeats from ServiceAccounts on its allow-list. The kcm

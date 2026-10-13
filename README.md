@@ -36,7 +36,7 @@ Reference adapter: [`ksm-provider-sveltos`](https://github.com/brongineer/ksm-pr
 | `registry/client` | `Heartbeater`: registration and heartbeats | adapters |
 | `notify` | state-change notifications (`StateChanged`) and the kcm-side watch helpers | adapters, kcm |
 | `auth` | TokenReview authentication, result cache, token audiences | adapters, kcm |
-| `httpserver` | TLS server with certificate reload, used for both APIs | adapters, kcm |
+| `httpserver` | TLS server with certificate reload, used for both APIs; plain-HTTP insecure mode for testing and demos | adapters, kcm |
 | `problem` | RFC 9457 problem details shared by both APIs | adapters, kcm |
 | `providertest` | fakes, test servers and the provider contract suite | tests |
 

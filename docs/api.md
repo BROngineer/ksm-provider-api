@@ -272,6 +272,22 @@ other direction.
   authenticated.
 - Both sides use TLS 1.2 or later.
 
+### 5.1 Insecure mode (testing and demos only)
+
+Both servers can serve plain HTTP (`httpserver.Server.Insecure`). The
+endpoints are then `http://` URLs and the heartbeat carries no `caBundle`;
+authentication is unchanged.
+
+**Do not use it in production.** Bearer tokens travel in clear text. Anyone
+who can read pod traffic can replay the adapter's registry token to register
+their own endpoint under the provider's name, receive kcm's calls, and replay
+kcm's provider token against the real adapter until the tokens expire. The
+separate audiences do not help against an attacker who captures both. Where
+pod-to-pod traffic is already encrypted (a service mesh with mTLS), insecure
+mode only removes a redundant layer.
+
+The server logs a warning at startup in insecure mode.
+
 ## 6. State-change notifications
 
 kcm cannot watch provider objects, so the adapter tells kcm when a ServiceSet

@@ -20,7 +20,7 @@ See the [API contract](api.md) for the wire-level rules this guide relies on.
 | Package | Used for |
 |---|---|
 | `registry/server` | the registry store and the register handler |
-| `httpserver` | serving the registry handler over TLS |
+| `httpserver` | serving the registry handler over TLS (plain HTTP in insecure mode) |
 | `auth` | authenticating adapters' heartbeats |
 | `provider/client` | calling adapters |
 | `problem` | branching on error types |
@@ -87,6 +87,11 @@ if err := mgr.Add(&httpserver.Server{
 | registry `Service` | exposes the port above; adapters use its DNS name as `RegistryURL` |
 | CA for adapters | the registry certificate's CA, handed to adapters (their `RegistryCABundle`) |
 | RBAC | `create` on `tokenreviews.authentication.k8s.io` |
+| insecure mode | a Helm value (e.g. `ksm.registry.insecure`) setting `httpserver.Server{Insecure: true}` and dropping the certificate; adapters then use an `http://` `RegistryURL` and no CA. Testing and demos only, see [API contract §5.1](api.md#51-insecure-mode-testing-and-demos-only) |
+
+Adapters in insecure mode announce an `http://` endpoint and no `caBundle`;
+`provider/client` calls such endpoints as they are, so kcm needs no switch for
+that direction.
 
 ### 2.3 Re-enqueueing ServiceSets on transitions
 
