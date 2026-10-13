@@ -18,8 +18,9 @@ const (
 	readHeaderTimeout      = 10 * time.Second
 )
 
-// Server serves a handler over TLS until its context ends. It reloads the certificate when the
-// files change, because cert-manager rotates mounted Secrets in place.
+// Server serves a handler over TLS (or plain HTTP with Insecure) until its context ends. It
+// reloads the certificate when the files change, because cert-manager rotates mounted Secrets
+// in place.
 type Server struct {
 	Handler http.Handler
 	// Listener is used when set; otherwise the server listens on Addr.
@@ -44,12 +45,24 @@ func (s *Server) Start(ctx context.Context) error {
 		logger = slog.New(slog.DiscardHandler)
 	}
 
-	certs := &certReloader{certFile: s.CertFile, keyFile: s.KeyFile, logger: logger}
-	if err := certs.load(); err != nil {
-		if s.Listener != nil {
-			_ = s.Listener.Close()
+	srv := &http.Server{
+		Handler:           s.Handler,
+		ReadHeaderTimeout: readHeaderTimeout,
+	}
+	if s.Insecure {
+		logger.Warn("serving without TLS; bearer tokens travel in clear text, use for testing and demos only")
+	} else {
+		certs := &certReloader{certFile: s.CertFile, keyFile: s.KeyFile, logger: logger}
+		if err := certs.load(); err != nil {
+			if s.Listener != nil {
+				_ = s.Listener.Close()
+			}
+			return err
 		}
-		return err
+		srv.TLSConfig = &tls.Config{
+			MinVersion:     tls.VersionTLS12,
+			GetCertificate: certs.getCertificate,
+		}
 	}
 
 	l := s.Listener
@@ -60,17 +73,14 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 	}
 
-	srv := &http.Server{
-		Handler:           s.Handler,
-		ReadHeaderTimeout: readHeaderTimeout,
-		TLSConfig: &tls.Config{
-			MinVersion:     tls.VersionTLS12,
-			GetCertificate: certs.getCertificate,
-		},
-	}
-
 	errc := make(chan error, 1)
-	go func() { errc <- srv.ServeTLS(l, "", "") }()
+	go func() {
+		if s.Insecure {
+			errc <- srv.Serve(l)
+			return
+		}
+		errc <- srv.ServeTLS(l, "", "")
+	}()
 
 	select {
 	case err := <-errc:
