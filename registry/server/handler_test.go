@@ -334,6 +334,70 @@ func TestNewHandlerRequiresDependencies(t *testing.T) {
 	}
 }
 
+func TestHandlerAuthorizeFunc(t *testing.T) {
+	tests := []struct {
+		name       string
+		allow      bool
+		err        error
+		wantStatus int
+		wantType   problem.Type
+	}{
+		{name: "allowed", allow: true, wantStatus: http.StatusNoContent},
+		{name: "denied", wantStatus: http.StatusForbidden, wantType: problem.Forbidden},
+		{name: "lookup fails", err: errors.New("cache not synced"), wantStatus: http.StatusInternalServerError, wantType: problem.Internal},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotProvider, gotUser string
+			reg := NewRegistry()
+			h, err := NewHandler(HandlerConfig{
+				Registry:      reg,
+				Authenticator: &tokenAuthenticator{users: map[string]string{"sveltos-token": sveltosUser}},
+				Authorize: func(_ context.Context, provider, username string) (bool, error) {
+					gotProvider, gotUser = provider, username
+					return tt.allow, tt.err
+				},
+			})
+			if err != nil {
+				t.Fatalf("NewHandler: %v", err)
+			}
+
+			req := httptest.NewRequest(http.MethodPost, registerPath, strings.NewReader(validBody(t, nil)))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer sveltos-token")
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d (body %s)", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+			if tt.wantType != "" {
+				if p := decodeProblem(t, rec); p.Type != tt.wantType {
+					t.Errorf("problem type = %q, want %q", p.Type, tt.wantType)
+				}
+			}
+			if gotProvider != "sveltos" || gotUser != sveltosUser {
+				t.Errorf("Authorize(%q, %q), want (%q, %q)", gotProvider, gotUser, "sveltos", sveltosUser)
+			}
+			if _, registered := reg.Lookup("sveltos"); registered != (tt.wantStatus == http.StatusNoContent) {
+				t.Errorf("registered = %t, want %t", registered, tt.wantStatus == http.StatusNoContent)
+			}
+		})
+	}
+}
+
+func TestNewHandlerRejectsBothAllowListKinds(t *testing.T) {
+	_, err := NewHandler(HandlerConfig{
+		Registry:      NewRegistry(),
+		Authenticator: &tokenAuthenticator{},
+		Allowed:       map[string]string{"sveltos": sveltosUser},
+		Authorize:     func(context.Context, string, string) (bool, error) { return true, nil },
+	})
+	if err == nil {
+		t.Error("NewHandler succeeded with both Allowed and Authorize, want an error")
+	}
+}
+
 func TestNilIsLeaderMeansAlwaysLeader(t *testing.T) {
 	authn := &tokenAuthenticator{users: map[string]string{"sveltos-token": sveltosUser}}
 	reg := NewRegistry()

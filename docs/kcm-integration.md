@@ -54,8 +54,16 @@ authn := auth.NewCachedAuthenticator(
 h, err := registryserver.NewHandler(registryserver.HandlerConfig{
 	Registry:      reg,
 	Authenticator: authn,
-	Allowed:       allowedProviders, // provider name -> ServiceAccount username, from Helm values
-	IsLeader:      registryserver.LeaderFromElected(mgr.Elected()),
+	// Checked on every heartbeat, so providers are allowed and revoked at runtime (section 2.2).
+	Authorize: func(ctx context.Context, provider, username string) (bool, error) {
+		smp := new(kcmv1.StateManagementProvider)
+		if err := mgr.GetClient().Get(ctx, client.ObjectKey{Name: provider}, smp); err != nil {
+			return false, client.IgnoreNotFound(err)
+		}
+		sa := smp.Spec.Registration.ServiceAccount // nil checks omitted
+		return auth.ServiceAccountUsername(sa.Namespace, sa.Name) == username, nil
+	},
+	IsLeader: registryserver.LeaderFromElected(mgr.Elected()),
 	Logger:        slog.New(logr.ToSlogHandler(ctrl.Log.WithName("ksm-registry"))),
 })
 if err != nil {
@@ -82,7 +90,7 @@ if err := mgr.Add(&httpserver.Server{
 
 | Setting | Source |
 |---|---|
-| allow-list (`Allowed`) | Helm values, e.g. `ksm.providers: [{name: ksm-projectsveltos, serviceAccount: projectsveltos/ksm-provider-sveltos}]`, turned into usernames with `auth.ServiceAccountUsername(namespace, name)` |
+| allow-list (`Authorize`) | the `StateManagementProvider` named like the provider: its `spec.registration.serviceAccount` is the only identity allowed to register that name. A missing object or field denies (403); a lookup error answers 500. Adding or changing the object takes effect on the next heartbeat, without restarting kcm. `Allowed`, a static map, remains for callers whose allow-list never changes |
 | serving certificate | a cert-manager `Certificate` mounted into the pod; `httpserver.Server` reloads it when rotated |
 | registry `Service` | exposes the port above; adapters use its DNS name as `RegistryURL` |
 | CA for adapters | the registry certificate's CA, handed to adapters (their `RegistryCABundle`) |

@@ -228,9 +228,25 @@ silently downgrade to clear text. The risks are in
 
 ### 3.3 Registration on the kcm side
 
-kcm only accepts heartbeats from ServiceAccounts on its allow-list. The kcm
-installation must list your provider name with your adapter's ServiceAccount,
-e.g. `name: ksm-provider-example, serviceAccount: example-system/ksm-provider-example`.
+kcm only accepts heartbeats from the ServiceAccount declared for your provider
+name. Ship a `StateManagementProvider` named like your provider (usually in your
+chart) whose `spec.registration.serviceAccount` is your adapter's ServiceAccount:
+
+```yaml
+apiVersion: k0rdent.mirantis.com/v1beta1
+kind: StateManagementProvider
+metadata:
+  name: ksm-provider-example
+spec:
+  registration:
+    serviceAccount:
+      namespace: example-system
+      name: ksm-provider-example
+  # plus the fields the CRD requires: selector, adapter, provisioner, provisionerCRDs
+```
+
+kcm reads it on every heartbeat, so the provider is allowed as soon as the
+object exists, without restarting kcm.
 
 ### 3.4 RBAC
 
@@ -333,5 +349,5 @@ entry, ok := reg.Registry.Lookup("ksm-provider-example")
 - [ ] `notify.StateChanged` is called whenever provider-side state may have changed, after `Registered()`
 - [ ] heartbeat, poller and notifications run on the leader only; `LeaderElectionReleaseOnCancel` is on
 - [ ] the projected token uses `auth.RegistryAudience`; TLS certificate and CA are wired
-- [ ] the provider name is on kcm's allow-list with the adapter's ServiceAccount
+- [ ] a `StateManagementProvider` named like the provider declares the adapter's ServiceAccount in `spec.registration.serviceAccount`
 - [ ] `providertest.RunContract` passes
