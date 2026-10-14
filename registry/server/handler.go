@@ -37,10 +37,10 @@ type HandlerConfig struct {
 }
 
 type registerHandler struct {
-	registry *Registry
-	schema   *openapi3.Schema
-	logger   *slog.Logger
-	allowed  map[string]string
+	registry  *Registry
+	schema    *openapi3.Schema
+	logger    *slog.Logger
+	authorize func(ctx context.Context, provider, username string) (bool, error)
 }
 
 func NewHandler(cfg HandlerConfig) (http.Handler, error) {
@@ -49,6 +49,17 @@ func NewHandler(cfg HandlerConfig) (http.Handler, error) {
 	}
 	if cfg.Authenticator == nil {
 		return nil, errors.New("authenticator is required")
+	}
+	if cfg.Allowed != nil && cfg.Authorize != nil {
+		return nil, errors.New("set either Allowed or Authorize, not both")
+	}
+	authorize := cfg.Authorize
+	if authorize == nil {
+		allowed := cfg.Allowed
+		authorize = func(_ context.Context, provider, username string) (bool, error) {
+			user, ok := allowed[provider]
+			return ok && user == username, nil
+		}
 	}
 
 	requestSchema, err := schema.Load(registry.GetSpec, "RegisterProviderRequest")
@@ -66,10 +77,10 @@ func NewHandler(cfg HandlerConfig) (http.Handler, error) {
 	}
 
 	h := &registerHandler{
-		registry: cfg.Registry,
-		schema:   requestSchema,
-		logger:   logger,
-		allowed:  cfg.Allowed,
+		registry:  cfg.Registry,
+		schema:    requestSchema,
+		logger:    logger,
+		authorize: authorize,
 	}
 	return registry.HandlerWithOptions(h, registry.StdHTTPServerOptions{
 		// The generated wrapper applies middlewares in order, so the last one runs first:
@@ -112,7 +123,13 @@ func (h *registerHandler) RegisterKSMProvider(w http.ResponseWriter, r *http.Req
 	}
 
 	user, _ := auth.UsernameFrom(r.Context())
-	if allowed, ok := h.allowed[req.Name]; !ok || allowed != user {
+	allowed, err := h.authorize(r.Context(), req.Name, user)
+	if err != nil {
+		h.logger.Error("failed to authorize provider registration", "provider", req.Name, "user", user, "error", err)
+		problem.Write(w, problem.New(problem.Internal, "registration could not be authorized"))
+		return
+	}
+	if !allowed {
 		h.logger.Info("rejected provider registration", "provider", req.Name, "user", user)
 		problem.Write(w, problem.New(problem.Forbidden, "caller is not allowed to register this provider name"))
 		return
