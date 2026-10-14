@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -27,6 +28,9 @@ type HandlerConfig struct {
 	Authenticator auth.Authenticator
 	// Allowed maps a provider name to the only ServiceAccount username that may register it.
 	Allowed map[string]string
+	// Authorize reports whether username may register provider. Set it instead of Allowed
+	// when the allow-list changes at runtime; an error answers 500 and is logged.
+	Authorize func(ctx context.Context, provider, username string) (bool, error)
 	// IsLeader reports whether this replica holds the registry. Nil means always.
 	IsLeader func() bool
 	Logger   *slog.Logger
