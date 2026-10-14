@@ -1,8 +1,8 @@
 # kcm integration guide
 
-> **Status: planned.** This describes how kcm is *supposed* to use this module.
-> The kcm side is being implemented now; this guide will be updated where the
-> implementation diverges.
+> **Status: implemented** in kcm (`internal/ksm`, `internal/controller/serviceset`);
+> see kcm's `docs/state-management-providers.md` for the operator view. Where kcm
+> differs from the snippets below, the text says so.
 
 kcm plays two roles:
 
@@ -95,7 +95,7 @@ if err := mgr.Add(&httpserver.Server{
 | registry `Service` | exposes the port above; adapters use its DNS name as `RegistryURL` |
 | CA for adapters | the registry certificate's CA, handed to adapters (their `RegistryCABundle`) |
 | RBAC | `create` on `tokenreviews.authentication.k8s.io` |
-| insecure mode | a Helm value (e.g. `ksm.registry.insecure`) setting `httpserver.Server{Insecure: true}` and dropping the certificate; adapters then use an `http://` `RegistryURL` and no CA. Testing and demos only, see [API contract §5.1](api.md#51-insecure-mode-testing-and-demos-only) |
+| insecure mode | kcm's default: the Helm value `ksm.registry.insecure` setting `httpserver.Server{Insecure: true}` and dropping the certificate; adapters then use an `http://` `RegistryURL` and no CA. Testing and demos only, see [API contract §5.1](api.md#51-insecure-mode-testing-and-demos-only) |
 
 Adapters in insecure mode announce an `http://` endpoint and no `caBundle`;
 `provider/client` calls such endpoints as they are, so kcm needs no switch for
@@ -148,12 +148,12 @@ case entry.State == registryserver.StateSuspended:
 
 ### 3.1.1 Checking the target cluster
 
-Whether the target cluster exists is kcm's concern, not the provider's: check
-it before calling. An adapter whose provider objects match no cluster returns
-the services it last reported, unchanged (the Sveltos adapter does exactly what
-kcm's in-tree code did), so their states may be stale. kcm knows the
-ClusterDeployment and resolves the target cluster itself; when it is missing,
-kcm sets `status.deployed=false` and does not trust the reported states.
+Whether the target cluster exists is kcm's concern, not the provider's. An
+adapter whose provider objects match no cluster returns the services it last
+reported, unchanged (the Sveltos adapter does exactly what kcm's in-tree code
+did), so their states may be stale. kcm resolves the target cluster itself after
+the call: when it is missing, kcm keeps the reported services, as the in-tree
+code did, but sets `status.deployed=false`.
 
 ### 3.2 Building clients
 
@@ -205,6 +205,17 @@ those failures as results, and kcm must keep the retry itself.
 When `Collected` is false the adapter has not fingerprinted anything: every
 `DeployedHash` is empty and the verifier must not stamp, exactly as kcm skipped
 verification after a failed collection.
+
+Fields kcm owns must not come from `res.Services`: the adapter echoes them from
+its own, possibly older, read of the ServiceSet status. kcm keeps
+`lastDeployedHash`, the per-service conditions and the `version` of Helm
+services from its current status; the verifier is their only writer. kcm also
+fills `lastStateTransitionTime`, which the contract leaves optional and the CRD
+requires, from its status or the current time.
+
+When the provider is not registered or suspended, kcm does not call it and
+writes only `status.provider` and `status.cluster`: services kcm has no report
+for would lack the type the CRD requires.
 
 ### 3.4 Delete
 
@@ -310,3 +321,8 @@ reg.Register(registryserver.Registration{
 - `fake.DeployCalls()` / `fake.DeleteCalls()` show what kcm sent.
 - Leave `DeployFunc` nil for the default: applied at the requested generation,
   no services.
+- `NewTestServer` takes `*testing.T`, which Ginkgo cannot provide. kcm's
+  reconciler calls providers through an interface that both
+  `*providerclient.Client` and `*providertest.FakeProvider` satisfy, so its
+  Ginkgo suite injects the fake directly; only the client cache is tested over
+  HTTP with `NewTestServer`.

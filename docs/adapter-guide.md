@@ -242,8 +242,10 @@ spec:
     serviceAccount:
       namespace: example-system
       name: ksm-provider-example
-  # plus the fields the CRD requires: selector, adapter, provisioner, provisionerCRDs
 ```
+
+`registration` is the only field kcm uses; the CRD's other spec fields are kept
+for compatibility and ignored.
 
 kcm reads it on every heartbeat, so the provider is allowed as soon as the
 object exists, without restarting kcm.
